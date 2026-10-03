@@ -298,3 +298,31 @@ test("outside and lost capture preserve panel IDs and field; next input works", 
   await drag(page, 0, 0);
   await expect(page.locator(".slot").first()).toHaveAttribute("data-size", "2");
 });
+
+test("release during pointerdown cannot commit before lostpointercapture is delivered", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const before = await page
+    .locator("#hand .panel")
+    .evaluateAll((els) => els.map((e) => (e as HTMLElement).dataset.id));
+  await page.locator("#board").evaluate((board) => {
+    board.addEventListener(
+      "pointerdown",
+      (event) => {
+        board.releasePointerCapture((event as PointerEvent).pointerId);
+      },
+      { once: true },
+    );
+  });
+  await drag(page, 0, 0);
+  expect(
+    await page
+      .locator("#hand .panel")
+      .evaluateAll((els) => els.map((e) => (e as HTMLElement).dataset.id)),
+  ).toEqual(before);
+  await expect(page.locator('.slot[data-size="0"]')).toHaveCount(5);
+  await expect(page.locator("#ghost")).toBeHidden();
+  await drag(page, 0, 0);
+  await expect(page.locator(".slot").first()).toHaveAttribute("data-size", "2");
+});

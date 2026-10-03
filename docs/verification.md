@@ -23,3 +23,17 @@ A/B/Cすべてで目標達成、終了、再試行を確認。実時間の開始
 | A | [画像](scenario-A-desktop.jpg) | [画像](scenario-A-touch.jpg) |
 | B | [画像](scenario-B-desktop.jpg) | [画像](scenario-B-touch.jpg) |
 | C | [画像](scenario-C-desktop.jpg) | [画像](scenario-C-touch.jpg) |
+
+## 同一headのpush / PR実行差の調査
+
+初版 `730d0305558c26a92388330f7647adb6593a5de9` は、push run [37143509519](https://github.com/clockcrockwork/generic-divige/actions/runs/37143509519) が19/20成功・1件失敗（build skipped）、PR run [37143539916](https://github.com/clockcrockwork/generic-divige/actions/runs/37143539916) は20/20成功でした。初版のすべてのイベントが成功したわけではありません。
+
+失敗したのはtouchプロジェクトのcapture喪失テスト。解除後にもAAが配置され、手札ID A-0/A-1がA-5/A-6へ置換されていました。両runはUbuntu image 20260927.320.1、Node 24.21.0、npm 11.19.0、同じlockfile・検査手順です。pushはhead本体、PRはGitHub生成のmerge refをcheckoutしています。baseがheadの祖先なので製品ツリーは同一です。
+
+原因はPointer Eventsのpending captureの境界です。setPointerCapture直後、captureが確定する前にreleasePointerCaptureされると、lostpointercapture通知を前提にした処理だけではドラッグが残ることがあります。pointerdownと同じイベント内で解除するテストを追加し、旧実装でdesktop/touch双方が同じ手札変化により失敗することを確認しました。通知の到着タイミングにより初版の既存テストは通る場合もあるため、PR成功だけではこの不具合を否定できません。元runのイベント列そのものはログに残っておらず、差の細部は推定です。
+
+修正はpointermoveとpointerupでhasPointerCaptureを確認し、解除済みなら配置せずキャンセルすることです。待機時間やリトライ追加では失敗を隠していません。仕様参照: [W3C pending pointer capture](https://www.w3.org/TR/pointerevents3/#process-pending-pointer-capture)。
+
+修正後のローカル検証: 問題の既存テストと追加回帰テストをdesktop/touchで各5回、計20回成功。その後の全E2Eは22/22成功、単体33/33、lint・型検査・buildも成功。最初の反復実行には、開発サーバーが編集中のsrc/ui/input.tsを再読み込みしたためのnavigationエラーが1件ありました（ドラッグ操作前のevaluateAll）。Viteのpage reloadログで確認し、編集を止めた状態で上記の反復と全件検証を行いました。これは元のCIで観測された手札消費とは別の失敗です。
+
+修正差分の独立レビューでもCritical/Importantなし。up側ガード単独の専用テストは軽微な追加改善として未実施（今回の回帰テストはmove側でキャンセルされる）。元の失敗runを再実行して履歴を上書きせず、新headのpush/PR両イベントを確認します。

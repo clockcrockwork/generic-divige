@@ -93,7 +93,8 @@ export function bindInput(board: HTMLElement, o: InputOptions) {
   });
   board.addEventListener("pointermove", (e) => {
     if (drag?.pointer !== e.pointerId) return;
-    if (!o.active()) {
+    // Pending capture can be released before any lostpointercapture event exists.
+    if (!board.hasPointerCapture(e.pointerId) || !o.active()) {
       clear(true);
       return;
     }
@@ -101,6 +102,10 @@ export function bindInput(board: HTMLElement, o: InputOptions) {
   });
   board.addEventListener("pointerup", (e) => {
     if (drag?.pointer !== e.pointerId) return;
+    if (!board.hasPointerCapture(e.pointerId)) {
+      clear(true);
+      return;
+    }
     const ids = drag.ids;
     const now = performance.now();
     const slot = hitSlot(
