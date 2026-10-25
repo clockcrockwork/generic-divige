@@ -141,3 +141,28 @@ test("gathered bundles survive neither cancel, capture loss nor reset", async ({
     await expect(page.locator(".slot").first()).toHaveAttribute("data-size", "1");
   }
 });
+
+test("capture released during pointerup cannot commit a gathered bundle", async ({ page }, info) => {
+  const p = await pointer(page, info.project.name === "touch");
+  const ids = () => page.locator("#hand .panel").evaluateAll(els => els.map(e => (e as HTMLElement).dataset.id));
+  const before = await ids();
+  await p.down(await point(page, "#hand .panel", 0));
+  await p.move(await point(page, "#hand .panel", 1));
+  await expect(page.locator("#hand .held")).toHaveCount(2);
+  await p.move(await point(page, ".slot", 0));
+  // Release in this same up event, before the adapter's bubbling listener.
+  // No intervening move or lostpointercapture can mask the up-side guard.
+  await page.locator("#board").evaluate(board => {
+    board.addEventListener("pointerup", event => {
+      board.releasePointerCapture((event as PointerEvent).pointerId);
+    }, { capture: true, once: true });
+  });
+  await p.up();
+  expect(await ids()).toEqual(before);
+  await expect(page.locator('.slot[data-size="0"]')).toHaveCount(5);
+  await expect(page.locator("#ghost")).toBeHidden();
+  await p.down(await point(page, "#hand .panel", 0));
+  await p.move(await point(page, ".slot", 0));
+  await p.up();
+  await expect(page.locator(".slot").first()).toHaveAttribute("data-size", "1");
+});
