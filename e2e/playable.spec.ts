@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-async function drag(page: Page, from: number, to: number, hand = false) {
+async function drag(page: Page, from: number, to: number, hand = false, gather: number[] = []) {
   const a = await page.locator("#hand .panel").nth(from).boundingBox();
   const b = await page
     .locator(hand ? "#hand .panel" : ".slot")
@@ -8,6 +8,11 @@ async function drag(page: Page, from: number, to: number, hand = false) {
   if (!a || !b) throw Error("missing board");
   await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2);
   await page.mouse.down();
+  for (const i of gather) {
+    const p = await page.locator("#hand .panel").nth(i).boundingBox();
+    if (!p) throw Error("missing neighbor");
+    await page.mouse.move(p.x + p.width / 2, p.y + p.height / 2);
+  }
   await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2, { steps: 3 });
   await page.mouse.up();
 }
@@ -20,7 +25,7 @@ test("preparation, immediate batch refill, tuning and replay", async ({
   await drag(page, 0, 4, true);
   await expect(page.locator("#status")).toContainText("準備");
   await page.getByRole("button", { name: "もう一度" }).click();
-  await drag(page, 0, 0);
+  await drag(page, 0, 0, false, [1]);
   await expect(page.locator(".slot").nth(0)).toHaveAttribute("data-size", "2");
   await expect(page.locator("#hand .panel")).toHaveCount(5);
   await expect(page.locator("#combo")).toHaveText("1");
@@ -60,15 +65,13 @@ for (const scenario of ["A", "B", "C"])
     await setRange(page, "#duration", "2000");
     await setRange(page, "#speed", "0.25");
     if (scenario === "A") {
-      await drag(page, 0, 0);
-      await page.locator("#batch").uncheck();
+      await drag(page, 0, 0, false, [1]);
       await color(page, "B", 1);
       await color(page, "B", 1);
       await color(page, "C", 2);
       await color(page, "C", 2);
     }
     if (scenario === "B") {
-      await page.locator("#batch").uncheck();
       for (let i = 0; i < 4; i++) await drag(page, 0, 4);
       await color(page, "A", 0);
       await color(page, "A", 0);
@@ -76,9 +79,8 @@ for (const scenario of ["A", "B", "C"])
       await color(page, "B", 1);
     }
     if (scenario === "C") {
-      await drag(page, 0, 0);
-      await drag(page, 0, 1);
-      await page.locator("#batch").uncheck();
+      await drag(page, 0, 0, false, [1]);
+      await drag(page, 0, 1, false, [1]);
       await color(page, "H", 1);
       await color(page, "H", 1);
       await color(page, "H", 1);
@@ -108,14 +110,12 @@ test("overflow is atomic; outside, cancel, reset and scenario switch cannot leak
   await page.clock.pauseAt(new Date("2026-01-01T00:10:00Z"));
   await page.goto("/");
   await setRange(page, "#duration", "2000");
-  await page.locator("#batch").uncheck();
   for (let i = 0; i < 4; i++) await drag(page, 0, 0);
   const before = await page.locator("#hand").innerHTML();
-  await page.locator("#batch").check(); // current hand D,B,C,C,D; drag the adjacent C pair into a 4/5 slot
-  await drag(page, 2, 0);
+  await drag(page, 2, 0, false, [3]);
   expect(await page.locator("#hand").innerHTML()).toBe(before);
   await expect(page.locator(".slot").nth(0)).toHaveAttribute("data-size", "4");
-  await drag(page, 2, 1);
+  await drag(page, 2, 1, false, [3]);
   await expect(page.locator(".slot").nth(1)).toHaveAttribute("data-size", "2");
   const panel = page.locator("#hand .panel").first();
   const p = await panel.boundingBox();
@@ -177,7 +177,7 @@ test("touch drag, second finger ownership and touch cancellation", async ({
     type: "touchEnd",
     touchPoints: [],
   });
-  await expect(page.locator(".slot").first()).toHaveAttribute("data-size", "2");
+  await expect(page.locator(".slot").first()).toHaveAttribute("data-size", "1");
   await expect(page.locator("#hand .panel")).toHaveCount(5);
   const next = await page.locator("#hand .panel").first().boundingBox();
   if (!next) throw Error("hand absent");
@@ -191,7 +191,7 @@ test("touch drag, second finger ownership and touch cancellation", async ({
     touchPoints: [],
   });
   await expect(page.locator("#ghost")).toBeHidden();
-  await expect(page.locator(".slot").first()).toHaveAttribute("data-size", "2");
+  await expect(page.locator(".slot").first()).toHaveAttribute("data-size", "1");
 });
 test("live count rate preserves progress; animation rate only affects cosmetics", async ({
   page,
@@ -214,7 +214,7 @@ test("live count rate preserves progress; animation rate only affects cosmetics"
       .locator("#count-meter")
       .evaluate((e) => (e as HTMLProgressElement).value),
   ).toBeCloseTo(2, 1);
-  await expect(page.locator("#combo")).toHaveText("1");
+  await expect(page.locator("#combo")).toHaveText("0");
   await page
     .locator("#diagnostics")
     .evaluate((e) => ((e as HTMLDetailsElement).open = true));
@@ -243,7 +243,7 @@ test("expiry during drag cancels it; right button and stale scenario release are
   await page.clock.fastForward(5000);
   await expect(page.locator("#ghost")).toBeHidden();
   await page.mouse.up();
-  await expect(page.locator(".slot").first()).toHaveAttribute("data-size", "2");
+  await expect(page.locator(".slot").first()).toHaveAttribute("data-size", "1");
   await page.getByRole("button", { name: "もう一度" }).click();
   await page.mouse.move(p.x + 15, p.y + 15);
   await page.mouse.down({ button: "right" });
@@ -296,7 +296,7 @@ test("outside and lost capture preserve panel IDs and field; next input works", 
   ).toEqual(before);
   await expect(page.locator('.slot[data-size="0"]')).toHaveCount(5);
   await drag(page, 0, 0);
-  await expect(page.locator(".slot").first()).toHaveAttribute("data-size", "2");
+  await expect(page.locator(".slot").first()).toHaveAttribute("data-size", "1");
 });
 
 test("release during pointerdown cannot commit before lostpointercapture is delivered", async ({
@@ -324,5 +324,5 @@ test("release during pointerdown cannot commit before lostpointercapture is deli
   await expect(page.locator('.slot[data-size="0"]')).toHaveCount(5);
   await expect(page.locator("#ghost")).toBeHidden();
   await drag(page, 0, 0);
-  await expect(page.locator(".slot").first()).toHaveAttribute("data-size", "2");
+  await expect(page.locator(".slot").first()).toHaveAttribute("data-size", "1");
 });

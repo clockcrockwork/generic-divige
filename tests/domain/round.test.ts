@@ -4,7 +4,6 @@ import {
   commitPanels,
   reorderHand,
   recipes,
-  adjacentRun,
 } from "../../src/domain/round";
 import { scenarios } from "../../src/scenarios";
 const drop = (
@@ -23,14 +22,6 @@ describe("round", () => {
     expect(a.hand).toHaveLength(5);
     expect(a.slots).toEqual([[], [], [], [], []]);
     expect(a).toEqual(createRound(scenarios[0]));
-  });
-  it("selects contiguous runs, not matches across gaps", () => {
-    const s = createRound(scenarios[1]);
-    expect(adjacentRun(s.hand, s.hand[0].id)).toEqual([s.hand[0].id]);
-    const a = createRound(scenarios[0]);
-    expect(adjacentRun(a.hand, a.hand[1].id)).toEqual(
-      a.hand.slice(0, 2).map((p) => p.id),
-    );
   });
   it("reorders without consuming or changing panel multiset", () => {
     const s = createRound(scenarios[0]);

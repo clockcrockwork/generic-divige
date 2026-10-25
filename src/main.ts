@@ -14,8 +14,8 @@ app.innerHTML = `<main><header><div><span class="eyebrow">INTENTIONAL COMBO / FE
 <div class="hud"><div><small>FIVE COUNTS</small><strong id="status"></strong></div><div class="combo"><b id="combo">0</b><span>COMBO</span></div></div><div class="meter-row"><progress id="count-meter" max="5" value="0" aria-label="経過カウント"></progress><span id="count-value"></span></div>
 <div class="objective"><span>今回の目標</span><strong id="goal"></strong><small id="goal-state"></small></div>
 <div id="board"><div class="section-label">FIELD <span>各枠 5枚まで · 同色2枚で攻撃</span></div><div id="field">${Array.from({ length: 5 }, (_, i) => `<div class="slot" data-slot="${i}" data-size="0" aria-label="場 ${i + 1}"><small ${i === 4 ? 'id="waste"' : ""}>${i + 1}</small><div class="pips"></div><strong class="recipe"></strong></div>`).join("")}</div>
-<div class="drag-guide"><svg width="64" height="26" viewBox="0 0 64 26" aria-hidden="true"><path d="M2 23Q30 23 52 4m-12 1 13-2-2 12"/></svg><span>手札をドラッグして配置。手札内では並べ替え。</span></div><div class="section-label">HAND <label class="mode"><input type="checkbox" id="batch" checked> 隣接する同色をまとめる</label></div><div id="hand"></div></div>
-<div id="preview" class="preview">同じ形を隣に並べて、まとめて置こう。</div><p id="feedback" role="status" aria-live="polite">準備は時間無制限です。</p>
+<div class="drag-guide"><svg width="64" height="26" viewBox="0 0 64 26" aria-hidden="true"><path d="M2 23Q30 23 52 4m-12 1 13-2-2 12"/></svg><span>手札をドラッグして配置。手札内では並べ替え。</span></div><div class="section-label">HAND <span>1枚ずつ掴む・隣の同色をなぞると束に</span></div><div id="hand"></div></div>
+<div id="preview" class="preview">1枚ずつ置けます。束にするには、掴んだまま隣の同色の中央をなぞろう。</div><p id="feedback" role="status" aria-live="polite">準備は時間無制限です。</p>
 <section id="result" hidden aria-live="polite"><span class="eyebrow">ROUND RESULT</span><h2 id="result-title"></h2><p id="result-detail"></p><small>「もう一度」で同じ手札・補充順をリプレイ。</small></section></section>
 <section class="bottom"><div class="guide-card"><span class="eyebrow">RECIPE NOTES</span><div class="legend">${TYPES.map((t) => `<span data-type="${t}">${shapes[t]} ${t}${t === "H" ? "" : " ×2"}</span>`).join("")}</div><p>攻撃 A〜E：同色2枚で1コンボ。<br>♥ H：1〜5枚で Heal I〜V。回復は1枠1コンボ。</p><p id="scenario-guide"></p></div><div class="tuning"><span class="eyebrow">LIVE TUNING</span><label for="duration">カウント間隔 <output id="duration-output">1000 ms / count</output></label><input id="duration" type="range" min="400" max="2000" step="50" value="1000"><label for="speed">演出の速さ <output id="speed-output">1.00×</output></label><input id="speed" type="range" min="0.25" max="2" step="0.05" value="1"><small>間隔は進行速度、演出は見た目だけ。初期値は試遊用です。</small></div></section>
 <details id="diagnostics"><summary>入力計測 · ローカルのみ</summary><p>DOM更新までのブラウザ側近似値（ms）。表示遅延の実測ではありません。各系列は直近120件まで。</p><pre id="metrics">まだ操作がありません。</pre></details><footer>Original shapes & interface · 再現性のある操作感テスト</footer></main><div id="ghost" hidden aria-hidden="true"></div>`;
@@ -64,7 +64,6 @@ function tick(now: number) {
 }
 const input = bindInput(document.querySelector("#board")!, {
   hand: () => game.round.hand,
-  batch: () => document.querySelector<HTMLInputElement>("#batch")!.checked,
   active: () => {
     tick(performance.now());
     return !game.finished;
@@ -97,7 +96,7 @@ const input = bindInput(document.querySelector("#board")!, {
   preview: (ids, slot) => {
     const preview = document.querySelector("#preview")!;
     if (!ids.length) {
-      preview.textContent = "同じ形を隣に並べて、まとめて置こう。";
+      preview.textContent = "1枚ずつ置けます。束にするには、掴んだまま隣の同色の中央をなぞろう。";
       return;
     }
     if (slot < 0) {

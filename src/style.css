@@ -310,17 +310,6 @@ progress::-webkit-progress-value {
   stroke: #789c94;
   stroke-width: 1.5;
 }
-.mode {
-  display: flex;
-  align-items: center;
-  font-size: 11px;
-  letter-spacing: 0;
-  gap: 5px;
-  color: #bdccc9;
-}
-.mode input {
-  accent-color: #b6e8ce;
-}
 #hand {
   max-width: 600px;
   margin: auto;
@@ -587,9 +576,6 @@ footer {
   }
   .section-label > span {
     font-size: 8px;
-  }
-  .mode {
-    font-size: 10px;
   }
   .bottom {
     grid-template-columns: 1fr;

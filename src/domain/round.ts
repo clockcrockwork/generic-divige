@@ -23,15 +23,6 @@ function validSelection(state: Round, ids: string[]) {
     ids.every((id) => state.hand.some((p) => p.id === id))
   );
 }
-export function adjacentRun(hand: Panel[], id: string): string[] {
-  const i = hand.findIndex((p) => p.id === id);
-  if (i < 0) return [];
-  let start = i,
-    end = i;
-  while (start > 0 && hand[start - 1].type === hand[i].type) start--;
-  while (end < hand.length - 1 && hand[end + 1].type === hand[i].type) end++;
-  return hand.slice(start, end + 1).map((p) => p.id);
-}
 export function reorderHand(
   state: Round,
   ids: string[],

@@ -1,4 +1,3 @@
-import { adjacentRun } from "../domain/round";
 import type { Panel } from "../domain/model";
 import type { Metrics } from "./metrics";
 interface Rect {
@@ -33,7 +32,6 @@ export const acceptsPointer = (
 ) => primary && button === 0 && !busy;
 interface InputOptions {
   hand: () => Panel[];
-  batch: () => boolean;
   active: () => boolean;
   drop: (ids: string[], slot: number, now: number) => void;
   reorder: (ids: string[], index: number, now: number) => void;
@@ -45,6 +43,45 @@ export function bindInput(board: HTMLElement, o: InputOptions) {
   let drag: { pointer: number; ids: string[] } | null = null;
   const ghost = document.querySelector<HTMLElement>("#ghost")!;
   const slotElements = () => [...board.querySelectorAll<HTMLElement>(".slot")];
+  function showSelection() {
+    if (!drag) return;
+    board
+      .querySelectorAll<HTMLElement>("#hand .panel")
+      .forEach((p) => p.classList.toggle("held", drag!.ids.includes(p.dataset.id!)));
+    ghost.textContent = `${ghost.dataset.type} × ${drag.ids.length}`;
+  }
+  function gather(e: PointerEvent) {
+    if (!drag) return;
+    const hand = o.hand();
+    const indexes = hand.flatMap((p, i) =>
+      drag!.ids.includes(p.id) ? [i] : [],
+    );
+    if (!indexes.length) return;
+    const first = indexes[0],
+      last = indexes[indexes.length - 1];
+    // Only the two immediate neighbors qualify. Never absorb an entire run.
+    for (const i of [first - 1, last + 1]) {
+      const panel = hand[i];
+      if (!panel || panel.type !== hand[first].type) continue;
+      const element = [
+        ...board.querySelectorAll<HTMLElement>("#hand .panel"),
+      ].find((p) => p.dataset.id === panel.id);
+      if (!element) continue;
+      const r = element.getBoundingClientRect();
+      // Inset all edges by 20% so grazing a card does not gather it.
+      if (
+        e.clientX < r.left + r.width * 0.2 ||
+        e.clientX > r.right - r.width * 0.2 ||
+        e.clientY < r.top + r.height * 0.2 ||
+        e.clientY > r.bottom - r.height * 0.2
+      ) continue;
+      drag.ids = hand
+        .filter((p) => drag!.ids.includes(p.id) || p.id === panel.id)
+        .map((p) => p.id);
+      showSelection();
+      return;
+    }
+  }
   function clear(notify = false) {
     const old = drag;
     drag = null;
@@ -77,16 +114,11 @@ export function bindInput(board: HTMLElement, o: InputOptions) {
     if (!panel) return;
     e.preventDefault();
     const start = performance.now();
-    const ids = o.batch()
-      ? adjacentRun(o.hand(), panel.dataset.id!)
-      : [panel.dataset.id!];
+    const ids = [panel.dataset.id!];
     drag = { pointer: e.pointerId, ids };
     board.setPointerCapture(e.pointerId);
-    board
-      .querySelectorAll<HTMLElement>("#hand .panel")
-      .forEach((p) => p.classList.toggle("held", ids.includes(p.dataset.id!)));
-    ghost.textContent = `${panel.dataset.type} × ${ids.length}`;
     ghost.dataset.type = panel.dataset.type;
+    showSelection();
     ghost.hidden = false;
     position(e);
     o.metrics.record("down → visual", performance.now() - start);
@@ -98,6 +130,7 @@ export function bindInput(board: HTMLElement, o: InputOptions) {
       clear(true);
       return;
     }
+    gather(e);
     position(e);
   });
   board.addEventListener("pointerup", (e) => {
